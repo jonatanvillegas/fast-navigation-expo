@@ -1,14 +1,17 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { createDrawerNavigator } from '@react-navigation/drawer';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+﻿const React = require('react');
+const { MaterialCommunityIcons } = require('@expo/vector-icons');
+const { createDrawerNavigator } = require('@react-navigation/drawer');
+const { createNativeStackNavigator } = require('@react-navigation/native-stack');
+const { Animated, Platform, StyleSheet, TouchableOpacity, View } = require('react-native');
+const {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} = require('react-native-safe-area-context');
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
-export const fastNavigationColors = {
+const fastNavigationColors = {
   border: '#DDEAE5',
   primary: '#0D9A69',
   primaryDark: '#006B49',
@@ -19,21 +22,36 @@ export const fastNavigationColors = {
   textMuted: '#657873',
 };
 
-const QuickTabsVisibilityContext = createContext({
+const QuickTabsVisibilityContext = React.createContext({
   visible: true,
-  showTabs: () => {},
-  hideTabs: () => {},
-  handleScroll: () => {},
+  showTabs: function noop() {},
+  hideTabs: function noop() {},
+  handleScroll: function noop() {},
 });
 
-export function QuickTabsVisibilityProvider({ children }) {
-  const [visible, setVisible] = useState(true);
-  const lastOffset = useRef(0);
+function FastNavigationProvider(props) {
+  return React.createElement(
+    SafeAreaProvider,
+    null,
+    React.createElement(QuickTabsVisibilityProvider, null, props.children)
+  );
+}
 
-  const showTabs = useCallback(() => setVisible(true), []);
-  const hideTabs = useCallback(() => setVisible(false), []);
+function QuickTabsVisibilityProvider(props) {
+  const visibleState = React.useState(true);
+  const visible = visibleState[0];
+  const setVisible = visibleState[1];
+  const lastOffset = React.useRef(0);
 
-  const handleScroll = useCallback((event) => {
+  const showTabs = React.useCallback(function showTabs() {
+    setVisible(true);
+  }, []);
+
+  const hideTabs = React.useCallback(function hideTabs() {
+    setVisible(false);
+  }, []);
+
+  const handleScroll = React.useCallback(function handleScroll(event) {
     const currentOffset = event.nativeEvent.contentOffset.y;
     const diff = currentOffset - lastOffset.current;
 
@@ -46,164 +64,211 @@ export function QuickTabsVisibilityProvider({ children }) {
     lastOffset.current = currentOffset;
   }, []);
 
-  const value = useMemo(
-    () => ({ visible, showTabs, hideTabs, handleScroll }),
-    [handleScroll, hideTabs, showTabs, visible]
+  const value = React.useMemo(
+    function createValue() {
+      return { visible, showTabs, hideTabs, handleScroll };
+    },
+    [visible, showTabs, hideTabs, handleScroll]
   );
 
-  return (
-    <QuickTabsVisibilityContext.Provider value={value}>
-      {children}
-    </QuickTabsVisibilityContext.Provider>
+  return React.createElement(
+    QuickTabsVisibilityContext.Provider,
+    { value },
+    props.children
   );
 }
 
-export function useQuickTabsVisibility() {
-  return useContext(QuickTabsVisibilityContext);
+function useQuickTabsVisibility() {
+  return React.useContext(QuickTabsVisibilityContext);
 }
 
-export function FastQuickTabsBar({
-  barHeight = 58,
-  colors = fastNavigationColors,
-  iconSize = 25,
-  centerIconSize = 30,
-  navigationRef,
-  onTabPress,
-  rootDrawerName = 'RootDrawer',
-  tabs = [],
-}) {
-  const { visible } = useQuickTabsVisibility();
+function FastQuickTabsBar(props) {
+  const colors = resolveColors(props);
+  const tabs = props.tabs || [];
+  const barHeight = props.barHeight || 58;
+  const iconSize = props.iconSize || 25;
+  const centerIconSize = props.centerIconSize || 30;
+  const rootDrawerName = props.rootDrawerName || 'RootDrawer';
+  const visibility = useQuickTabsVisibility();
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = React.useRef(new Animated.Value(0)).current;
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 0);
   const computedBarHeight = barHeight + bottomInset;
-  const styles = useMemo(() => createQuickTabsStyles(colors), [colors]);
+  const styles = React.useMemo(
+    function createStyles() {
+      return createQuickTabsStyles(colors);
+    },
+    [colors]
+  );
 
-  useEffect(() => {
-    Animated.timing(translateY, {
-      duration: 180,
-      toValue: visible ? 0 : computedBarHeight + 26,
-      useNativeDriver: true,
-    }).start();
-  }, [computedBarHeight, translateY, visible]);
+  React.useEffect(
+    function animateVisibility() {
+      Animated.timing(translateY, {
+        duration: 180,
+        toValue: visibility.visible ? 0 : computedBarHeight + 26,
+        useNativeDriver: true,
+      }).start();
+    },
+    [computedBarHeight, translateY, visibility.visible]
+  );
 
   function handlePress(item) {
-    if (onTabPress) {
-      onTabPress(item);
+    if (props.onTabPress) {
+      props.onTabPress(item);
       return;
     }
 
-    navigateToDrawerScreen(navigationRef, item.screen, rootDrawerName);
+    navigateToDrawerScreen(props.navigationRef, item.screen, rootDrawerName);
   }
 
-  return (
-    <Animated.View pointerEvents="box-none" style={[styles.wrap, { transform: [{ translateY }] }]}>
-      <View
-        style={[
+  return React.createElement(
+    Animated.View,
+    {
+      pointerEvents: 'box-none',
+      style: [styles.wrap, { transform: [{ translateY }] }],
+    },
+    React.createElement(
+      View,
+      {
+        style: [
           styles.tabBar,
           { height: computedBarHeight, paddingBottom: bottomInset + 4 },
-        ]}
-      >
-        {tabs.map((item) => (
-          <TouchableOpacity
-            activeOpacity={0.78}
-            key={item.key ?? item.screen ?? item.icon}
-            onPress={() => handlePress(item)}
-            style={item.center ? styles.centerButtonWrap : styles.tabButton}
-          >
-            <View style={item.center ? styles.centerButton : styles.iconSlot}>
-              <MaterialCommunityIcons
-                name={item.icon}
-                size={item.center ? centerIconSize : iconSize}
-                color={item.center ? colors.surface : item.color ?? colors.textMuted}
-              />
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </Animated.View>
+        ],
+      },
+      tabs.map(function renderTab(item) {
+        const isCenter = Boolean(item.center);
+
+        return React.createElement(
+          TouchableOpacity,
+          {
+            activeOpacity: 0.78,
+            key: item.key || item.screen || item.icon,
+            onPress: function onPress() {
+              handlePress(item);
+            },
+            style: isCenter ? styles.centerButtonWrap : styles.tabButton,
+          },
+          React.createElement(
+            View,
+            { style: isCenter ? styles.centerButton : styles.iconSlot },
+            React.createElement(MaterialCommunityIcons, {
+              name: item.icon,
+              size: isCenter ? centerIconSize : iconSize,
+              color: isCenter ? colors.surface : item.color || colors.textMuted,
+            })
+          )
+        );
+      })
+    )
   );
 }
 
-export function FastDrawerNavigator({
-  colors = fastNavigationColors,
-  routes = [],
-  screenOptions,
-}) {
-  const defaultScreenOptions = useMemo(
-    () => ({
-      drawerActiveBackgroundColor: colors.surfaceMuted,
-      drawerActiveTintColor: colors.primary,
-      drawerInactiveTintColor: colors.textMuted,
-      drawerStyle: {
-        backgroundColor: colors.surface,
-        width: 288,
-      },
-      headerTintColor: colors.surface,
-      headerStyle: {
-        backgroundColor: colors.primaryDark,
-      },
-      headerTitleStyle: {
-        fontWeight: '700',
-      },
-      ...screenOptions,
+function FastDrawerNavigator(props) {
+  const colors = resolveColors(props);
+  const routes = props.routes || [];
+  const defaultOptions = {
+    drawerActiveBackgroundColor: colors.surfaceMuted,
+    drawerActiveTintColor: colors.primary,
+    drawerInactiveTintColor: colors.textMuted,
+    drawerStyle: {
+      backgroundColor: colors.surface,
+      width: 288,
+    },
+    headerTintColor: colors.surface,
+    headerStyle: {
+      backgroundColor: colors.primaryDark,
+    },
+    headerTitleStyle: {
+      fontWeight: '700',
+    },
+  };
+  const screenOptions =
+    typeof props.screenOptions === 'function'
+      ? function mergedScreenOptions(optionsProps) {
+          return Object.assign({}, defaultOptions, props.screenOptions(optionsProps));
+        }
+      : Object.assign({}, defaultOptions, props.screenOptions || {});
+
+  return React.createElement(
+    Drawer.Navigator,
+    { screenOptions },
+    routes.map(function renderRoute(route) {
+      return React.createElement(Drawer.Screen, {
+        component: route.component,
+        initialParams: route.initialParams,
+        key: route.name,
+        name: route.name,
+        options: buildDrawerScreenOptions(route),
+      });
+    })
+  );
+}
+
+function FastStackNavigator(props) {
+  const screens = props.screens || [];
+  const drawerName = props.drawerName || 'RootDrawer';
+  const screenOptions = props.screenOptions || { headerShown: false };
+
+  return React.createElement(
+    Stack.Navigator,
+    { screenOptions },
+    React.createElement(Stack.Screen, {
+      name: drawerName,
+      component: props.drawerComponent,
     }),
-    [colors, screenOptions]
-  );
-
-  return (
-    <Drawer.Navigator screenOptions={defaultScreenOptions}>
-      {routes.map((route) => (
-        <Drawer.Screen
-          component={route.component}
-          initialParams={route.initialParams}
-          key={route.name}
-          name={route.name}
-          options={{
-            drawerIcon: route.icon
-              ? ({ color, size }) => (
-                  <MaterialCommunityIcons name={route.icon} color={color} size={size} />
-                )
-              : undefined,
-            ...route.options,
-          }}
-        />
-      ))}
-    </Drawer.Navigator>
+    screens.map(function renderScreen(screen) {
+      return React.createElement(Stack.Screen, {
+        component: screen.component,
+        initialParams: screen.initialParams,
+        key: screen.name,
+        name: screen.name,
+        options: screen.options,
+      });
+    })
   );
 }
 
-export function FastStackNavigator({
-  drawerComponent,
-  drawerName = 'RootDrawer',
-  screenOptions = { headerShown: false },
-  screens = [],
-}) {
-  return (
-    <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name={drawerName} component={drawerComponent} />
-      {screens.map((screen) => (
-        <Stack.Screen
-          component={screen.component}
-          initialParams={screen.initialParams}
-          key={screen.name}
-          name={screen.name}
-          options={screen.options}
-        />
-      ))}
-    </Stack.Navigator>
-  );
-}
+function navigateToDrawerScreen(navigationRef, screen, rootDrawerName) {
+  const drawerName = rootDrawerName || 'RootDrawer';
 
-export const SemaneroQuickTabsBar = FastQuickTabsBar;
-export const SemaneroDrawerNavigator = FastDrawerNavigator;
-export const SemaneroStackNavigator = FastStackNavigator;
-export const semaneroNavigationColors = fastNavigationColors;
-
-export function navigateToDrawerScreen(navigationRef, screen, rootDrawerName = 'RootDrawer') {
-  if (navigationRef?.isReady?.()) {
-    navigationRef.navigate(rootDrawerName, { screen });
+  if (navigationRef && navigationRef.isReady && navigationRef.isReady()) {
+    navigationRef.navigate(drawerName, { screen });
   }
+}
+
+function buildDrawerScreenOptions(route) {
+  const drawerIcon = route.icon
+    ? function drawerIcon(iconProps) {
+        return React.createElement(MaterialCommunityIcons, {
+          name: route.icon,
+          color: iconProps.color,
+          size: iconProps.size,
+        });
+      }
+    : undefined;
+
+  if (typeof route.options === 'function') {
+    return function routeOptions(optionsProps) {
+      return Object.assign({ drawerIcon }, route.options(optionsProps));
+    };
+  }
+
+  return Object.assign({ drawerIcon }, route.options || {});
+}
+
+function resolveColors(props) {
+  const baseColors = Object.assign({}, fastNavigationColors, props.colors || {});
+  const primaryColor = props.primaryColor || props.color;
+
+  if (!primaryColor) {
+    return baseColors;
+  }
+
+  return Object.assign({}, baseColors, {
+    primary: primaryColor,
+    primaryDark: props.primaryDarkColor || primaryColor,
+    primarySoft: props.primarySoftColor || primaryColor,
+  });
 }
 
 function createQuickTabsStyles(colors) {
@@ -262,3 +327,20 @@ function createQuickTabsStyles(colors) {
     },
   });
 }
+
+module.exports = {
+  FastDrawerNavigator,
+  FastNavigationProvider,
+  FastQuickTabsBar,
+  FastStackNavigator,
+  QuickTabsVisibilityProvider,
+  SemaneroDrawerNavigator: FastDrawerNavigator,
+  SemaneroQuickTabsBar: FastQuickTabsBar,
+  SemaneroStackNavigator: FastStackNavigator,
+  fastNavigationColors,
+  navigateToDrawerScreen,
+  semaneroNavigationColors: fastNavigationColors,
+  useQuickTabsVisibility,
+};
+
+
