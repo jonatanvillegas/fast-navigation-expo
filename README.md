@@ -11,7 +11,8 @@ npm install fast-navigation
 Install the React Navigation peer dependencies required by your app:
 
 ```sh
-npm install @react-navigation/native @react-navigation/drawer @react-navigation/native-stack react-native-safe-area-context react-native-screens react-native-gesture-handler react-native-reanimated
+npx expo install react-native-reanimated react-native-gesture-handler react-native-screens react-native-safe-area-context
+npm install @react-navigation/native @react-navigation/drawer @react-navigation/native-stack fast-navigation
 ```
 
 `@expo/vector-icons` is included by this package so MaterialCommunityIcons are available out of the box.
